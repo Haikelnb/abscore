@@ -1,0 +1,25 @@
+# The build context is uploaded to the daemon before anything runs, so this is
+# about build speed as much as image size. The virtualenv is the big one: it is
+# host-specific (macOS wheels, absolute paths) and would be rebuilt anyway.
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Caches of every kind.
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+cache/
+
+# History and tooling the image has no use for.
+.git/
+.github/
+.DS_Store
+*.log
+
+# Working files that are not part of the project.
+review_temp
+report.md
+report.html
+out/

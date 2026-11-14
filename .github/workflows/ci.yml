@@ -1,0 +1,124 @@
+# What this is for.
+#
+# The test suite passing on the author's laptop is weak evidence: that machine
+# has HMMER from Homebrew, a warm uv cache, macOS wheels and an arm64 CPU. None
+# of those is true for a reader cloning this repository. These jobs run the same
+# suite on a clean amd64 Linux box that has never seen the project, which is the
+# only way the README's install instructions are checked rather than asserted.
+#
+# Three things are being proven, in order of how likely they are to break:
+#
+#   1. The install instructions work from nothing. `uv sync --frozen` has to
+#      resolve the committed lockfile with an empty cache, and HMMER has to come
+#      from the distribution's package manager -- it is a system dependency the
+#      lockfile cannot supply, and the single likeliest first-run failure.
+#   2. The scores are identical away from the author's machine. Numbering runs
+#      through a different HMMER build on a different architecture, and the
+#      panel comparison separates by as little as 4e-4, so a numerical drift
+#      would be invisible in anything coarser than the full suite.
+#   3. The container builds and is itself green on amd64. The images were only
+#      ever built on arm64 locally.
+#
+# The suite needs no network: every IEDB response it reads is committed under
+# tests/data/iedb and every invocation passes --offline.
+
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+# A new push supersedes a running build of the same branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned to the same version the Dockerfile uses, so a green run here says
+  # something about the image too.
+  UV_VERSION: "0.12.5"
+
+jobs:
+  suite:
+    name: tests and lint (ubuntu, amd64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install HMMER
+        # The dependency `uv sync` cannot provide. ANARCI shells out to
+        # hmmscan, so without this nothing numbers and every test fails.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends hmmer
+          hmmscan -h | head -2 | tail -1
+
+      - name: Install uv
+        # The standalone installer at a pinned version, rather than a
+        # marketplace action, so the toolchain is reproducible from this file.
+        run: |
+          curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install the project from the lockfile
+        # --frozen refuses to update the lockfile. If it cannot be satisfied,
+        # that is the failure a reader would hit, and it should fail here.
+        run: uv sync --frozen --all-extras
+
+      - name: Lint
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Run the whole suite
+        # Including the panel tests. They number all 1148 committed chains and
+        # take about a minute, which is worth paying on every push: they are
+        # what would catch a numbering difference between platforms.
+        run: uv run pytest -q
+
+      - name: Score a chain through the installed entry point
+        # The suite imports the package; this checks the console script a
+        # reader actually types, end to end, offline.
+        run: |
+          uv run abscore score --quiet --offline --cache-dir tests/data/iedb \
+            --format summary \
+            --seq EVQLVESGGGLVQPGGSLRLSCAASGFNIKDTYIHWVRQAPGKGLEWVARIYPTNGYTRYADSVKGRFTISADTSKNTAYLQMNSLRAEDTAVYYCSRWGGDGFYAMDYWGQGTLVTVSS \
+            | tee /dev/stderr | grep -q 'chain=H'
+
+      - name: Reproduce the validation table
+        run: uv run abscore validate --quiet
+
+  container:
+    name: docker image (amd64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build the test stage
+        # This stage runs the suite inside the image and fails the build if
+        # anything is red, so a green step here means the container is green
+        # on amd64 -- the architecture the local builds never covered.
+        run: docker build --target test .
+
+      - name: Build the CLI image
+        run: docker build -t abscore .
+
+      - name: Run it the way the README says to
+        run: |
+          docker run --rm abscore score --quiet --no-epitopes --format summary \
+            --seq EVQLVESGGGLVQPGGSLRLSCAASGFNIKDTYIHWVRQAPGKGLEWVARIYPTNGYTRYADSVKGRFTISADTSKNTAYLQMNSLRAEDTAVYYCSRWGGDGFYAMDYWGQGTLVTVSS \
+            | tee /dev/stderr | grep -q 'chain=H'
+          printf '>H\nEVQLVESGGGLVQPGGSLRLSCAASGFNIKDTYIHWVRQAPGKGLEWVARIYPTNGYTRYADSVKGRFTISADTSKNTAYLQMNSLRAEDTAVYYCSRWGGDGFYAMDYWGQGTLVTVSS\n' \
+            | docker run --rm -i abscore score --quiet --no-epitopes --format summary \
+            | grep -q 'chain=H'
+
+      - name: Report the image size
+        # Printed rather than asserted: a threshold here would be a number
+        # invented to pass, and the size is a judgement call that belongs to
+        # whoever reads it. It is in the log so a regression is visible.
+        run: docker images abscore --format "CLI image {{.Size}}"

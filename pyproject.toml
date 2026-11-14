@@ -1,0 +1,47 @@
+[project]
+name = "abscore"
+version = "0.1.0"
+description = "Immunogenicity triage for antibody heavy and light chains: humanness score and non-self MHC class II epitope burden."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "Haikel Bogale", email = "haikelnb@gmail.com" }
+]
+dependencies = [
+    "anarci>=2026.2.13.2",
+    "promb>=1.0.2",
+    "requests>=2.32",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+abscore = "abscore.cli:main"
+
+[project.optional-dependencies]
+app = [
+    "streamlit>=1.67.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "panel: slower tests that number the whole committed therapeutic panel",
+]
