@@ -16,8 +16,9 @@ Two things here are deliberately awkward to read, and both are honest:
 
 Every entry below carries `reproducible_from_repo`. Some of these measurements
 were made during development against inputs this repository does not ship --
-OAS sequence data has no published licence, so it was read locally and is not
-redistributed here. Those numbers are true and dated, and a reader cannot rerun
+the OAS data units behind the numbering comparison are tens of megabytes and
+nothing in this checkout recomputes from them, so they were read locally and
+are not redistributed. Those numbers are true and dated, and a reader cannot rerun
 them from this checkout. Saying which is which is the point: an unreproducible
 number presented as a repository result would be the one thing this file exists
 to prevent.
@@ -89,9 +90,10 @@ VERIFIED_AGAINST = {
         "note": "15,506 sequences numbered independently by OAS's own ANARCI run: "
         "99.908% position-level agreement (1,656,469/1,658,002), 96.098% of "
         "sequences identical end to end, zero region-boundary mismatches.",
-        "reproducible_from_repo": "NO. OAS publishes no licence or terms for its "
-        "sequence data, so these two data units were read locally and are not "
-        "redistributed here. The figures are a dated development measurement, "
+        "reproducible_from_repo": "NO. OAS data is CC BY-4.0, so these two data "
+        "units could be redistributed with attribution, but they are tens of "
+        "megabytes and nothing here recomputes from them, so they were read "
+        "locally and are not shipped. The figures are a dated development measurement, "
         "not a result this checkout recomputes. Committed instead: the numbering "
         "itself, its region-boundary tests, and the insertion-ordering cases the "
         "check turned up.",

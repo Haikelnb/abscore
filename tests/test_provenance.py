@@ -184,8 +184,9 @@ class TestEveryClaimStatesWhetherItCanBeReproduced:
     """The rule this file enforces: no number without its status.
 
     Several figures recorded here were measured during development against
-    inputs the repository does not ship -- OAS publishes no licence for its
-    sequence data, so it was read locally and is not redistributed. Those
+    inputs the repository does not ship -- the OAS data units behind the
+    numbering comparison are tens of megabytes and nothing here recomputes from
+    them, so they were read locally rather than shipped. Those
     numbers are true and dated; a reader cannot rerun them from a checkout.
     Presenting one as a repository result is the single failure mode provenance
     exists to prevent, so each entry says which it is.
@@ -205,7 +206,9 @@ class TestEveryClaimStatesWhetherItCanBeReproduced:
         """It is the strongest number in the file and the least reproducible."""
         status = VERIFIED_AGAINST["numbering_vs_oas"]["reproducible_from_repo"]
         assert status.lower().startswith("no")
-        assert "licence" in status or "license" in status
+        # And it says why the input is absent. OAS data is CC BY-4.0, so the
+        # reason is size and irrelevance to anything here, not permission.
+        assert "not shipped" in status
 
     def test_the_status_reaches_run_json(self):
         record = run_metadata()

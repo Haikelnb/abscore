@@ -5,38 +5,49 @@ alone. Give it a V-domain; it returns how close that domain sits to human
 germline, how much of it has been seen in human antibody repertoires, and which
 of its predicted MHC class II binding cores have no match in a human reference.
 
+It ranks candidates ahead of an assay. It does not predict immunogenicity: no
+score here has been shown to correlate with clinical anti-drug antibody rates,
+and establishing that is a validation exercise this project did not attempt.
+
 Every number is computed from public data, and every number that cannot be
 reproduced from this checkout says so.
 
 ```
-$ abscore score --seq EVQLVESGGGLVQPGGSLRLSCAASGFNIKDTYIHWVRQAPGKG...
+$ abscore score --offline --cache-dir tests/data/iedb \
+    --fasta examples/adalimumab.fasta
 
 CHAIN
 ────────────────────
   Type                   heavy (H)
-  Numbered               120 residues, IMGT 1-128
-  Closest germline V     IGHV3-66*04
-  Next closest gene      IGHV3-53*04 (1 position(s) behind)
+  Numbered               121 residues, IMGT 1-128
+  Closest germline V     IGHV3-9*01
+  Next closest gene      IGHV3-20*04 (7 position(s) behind)
 
 HUMANNESS
 ────────────────────
-  Germline identity, V   83.2%   79/95 positions
-    framework            90.0%   FR1+FR2+FR3; FR4 is J-encoded
-    CDR1+CDR2            46.7%   CDR3 is junctional, excluded
-  OASis identity         70.5%   79/112 9-mers in ≥10% of donors
+  Germline identity, V   93.8%   90/96 positions
+    framework            95.0%   FR1+FR2+FR3; FR4 is J-encoded
+    CDR1+CDR2            87.5%   CDR3 is junctional, excluded
+  OASis identity         85.8%   97/113 9-mers in ≥10% of donors
 
 MHC CLASS II
 ────────────────────
-  17 distinct 9-mer cores predicted to bind, across 86 peptide-allele pairs.
+  18 distinct 9-mer cores predicted to bind, across 77 peptide-allele pairs.
   8 HLA-DRB1 alleles · netmhciipan_el · 15-mers · percentile rank ≤ 10
 
   Is each core found in a human reference set?
 
   reference set        found   not found    1 away   2+ away   no entry
-  germline Ig genes *      6          10         3         7          1
-  OAS repertoire          11           6         2         4          -
-  human proteome           6          11         3         8          -
+  germline Ig genes *     11           3         1         2          4
+  OAS repertoire          15           3         1         2          -
+  human proteome          11           7         1         6          -
 ```
+
+That is the first of the two records, adalimumab's heavy chain; the kappa chain
+follows it, with its MHC class II section marked unavailable: only the heavy
+chain's predictions are in the committed cache, and `--offline` never calls out.
+The command otherwise reproduces this from a clean checkout with no network. The
+full report also prints a per-region IMGT track and a caveats section.
 
 ---
 
@@ -55,7 +66,15 @@ sudo apt-get install hmmer   # Debian/Ubuntu
 
 git clone <this repository> && cd abscore
 uv sync --frozen --all-extras
-uv run abscore score --seq EVQLVESGGG...
+
+uv run abscore score --fasta examples/adalimumab.fasta --no-epitopes --format summary
+```
+
+That last command is fully offline and should print:
+
+```
+adalimumab_heavy	chain=H germline=IGHV3-9*01 V=93.8% FR=95.0% OASis=85.8% binders=unavailable
+adalimumab_kappa	chain=K germline=IGKV1-27*03 V=97.7% FR=98.7% OASis=97.0% binders=unavailable
 ```
 
 `--frozen` installs exactly the pinned versions in `uv.lock` and refuses to
@@ -65,51 +84,47 @@ with `brew install uv` or `curl -LsSf https://astral.sh/uv/install.sh | sh`.)
 If `hmmscan` is missing, the tool says so and exits 3 with the install command
 for your platform, rather than failing somewhere deeper.
 
-### Windows
+### Windows, and Docker
 
 HMMER has no native Windows build, so on Windows this runs inside Linux: either
-**WSL2** (`wsl --install`, then follow the Linux steps) or **Docker**.
-This is a constraint of ANARCI, which every Python antibody-numbering project
-inherits.
-
-### Docker: any platform, nothing to install
+**WSL2** (`wsl --install`, then follow the Linux steps) or Docker. This is a
+constraint of ANARCI, which every Python antibody-numbering project inherits.
 
 ```bash
 docker build -t abscore .
-docker run --rm abscore score --seq EVQLVESGGG...
-cat chains.fasta | docker run --rm -i abscore score
-docker run --rm -v "$PWD/out:/out" abscore score --seq EVQ... --save /out/report.html
+docker run --rm abscore score --fasta examples/adalimumab.fasta --no-epitopes
 ```
 
-The image carries HMMER, Python 3.11 and the locked dependencies (637 MB). Two
-other targets exist: `--target app` adds the Streamlit interface
-(`docker run -p 8501:8501 abscore-app`), and `--target test` runs the whole
-suite inside the container and fails the build if anything is red.
-
-The CLI image scores a known chain during the build, so an image whose
-numbering is broken cannot be produced.
+The image carries HMMER, Python 3.11 and the locked dependencies (637 MB), and
+scores a known chain during the build, so an image whose numbering is broken
+cannot be produced. `--target app` adds the Streamlit interface and
+`--target test` runs the suite inside the container.
 
 ---
 
 ## Use
 
 ```bash
-abscore score --seq EVQLVESGGG...              # one chain
+abscore score --seq EVQ...VSS                  # one chain
 abscore score --fasta chains.fa                # one report per record
 cat chains.fa | abscore score                  # or on stdin
 
-abscore score --seq ... --save report.html     # a browser-readable page
-abscore score --seq ... --format json          # machine-readable
-abscore score --seq ... --format summary       # one line per chain
+abscore score --fasta chains.fa --format summary   # one line per record
+abscore score --fasta chains.fa --format json      # machine-readable
+abscore score --fasta chains.fa --save report.html # all records, one page
+abscore score --fasta chains.fa --out results/     # one file per record
 
 abscore validate                               # the panel comparison below
 abscore provenance                             # versions, settings, limits
 uv run streamlit run app.py                    # the interactive version
 ```
 
-The terminal report is the default. `--save` picks its format from the
-extension: `.html` renders the tables and a colour-coded IMGT position track,
-`.md` gives markdown.
+`--save` picks its format from the extension: `.html` renders the tables and a
+colour-coded IMGT position track, `.md` gives markdown.
+
+Each record is submitted to the MHC class II predictor separately, so a large
+FASTA is network-bound. For batch work use `--no-epitopes`, or a warm
+`--cache-dir`.
 
 Progress goes to stderr and results to stdout, so `abscore score ... > out.txt`
 writes a clean file while the status lines stay on screen.
@@ -127,55 +142,54 @@ offline.
 
 IMGT numbering via [ANARCI](https://github.com/oxpig/ANARCI). IMGT assigns 128
 fixed slots per V-domain and fills them outward from both ends, so a short loop
-leaves a gap in the *middle* rather than shifting everything along. That is what
-makes position 23 the first cysteine in every antibody regardless of loop
-length, and why the region table prints `8/12` for a CDR1 rather than just the
-residues.
-
-Five conserved anchors are checked (IMGT 23 Cys, 41 Trp, 89 hydrophobic, 104
-Cys, 118 Phe/Trp). An unexpected residue at one of them is reported as a
-finding; it means the numbering may be misaligned, or the sequence may carry a
-real substitution there, and the report does not guess which.
+leaves a gap in the *middle* rather than shifting everything along; that is why
+the region table prints `8/12` for a CDR1 rather than just the residues. Five
+conserved anchors are checked (IMGT 23 Cys, 41 Trp, 89 hydrophobic, 104 Cys,
+118 Phe/Trp). An unexpected residue at one is reported as a finding, since it
+means either the numbering is misaligned or the sequence carries a real
+substitution, and the report does not guess which.
 
 ### Humanness, two ways
 
 **Germline identity.** Percent identity to the closest human germline V gene,
-reported three ways: over the whole V region, over framework only (FR1+FR2+FR3;
-FR4 is J-encoded), and over CDR1+CDR2. CDR3 is junctional and excluded, since
-there is no germline sequence to compare it against. The denominator is
-positions present in both query and germline, with coverage reported separately
-so a partial domain cannot inflate the figure.
+reported over the whole V region, over framework only (FR1+FR2+FR3; FR4 is
+J-encoded), and over CDR1+CDR2. CDR3 is junctional and excluded, since there is
+no germline sequence to compare it against. The denominator is positions present
+in both query and germline, with coverage reported separately so a partial
+domain cannot inflate the figure.
 
 **OASis identity.** The fraction of the chain's 9-mer windows that appear in
 human antibody repertoires, as published in
 [BioPhi](https://doi.org/10.1080/19420862.2021.2020203) (Prihoda et al., *mAbs*
 2022) and computed through `promb`.
 
-Both are reported because they disagree in informative ways, and because on this
-project's own validation the simpler one is not worse (below).
+Both are reported because they answer related but different questions: a V-gene
+identity does not describe the junctional region, and a peptide prevalence does
+not say which gene a chain came from.
 
 ### MHC class II epitope burden
 
-15-mer windows are submitted to **IEDB's hosted NetMHCIIpan service**, against a
-default panel of 8 HLA-DRB1 alleles covering common supertypes, at a percentile
-rank cutoff of 10. Predicted binders are reduced to their distinct 9-mer binding
-cores. One core can be presented by several alleles and sit in several
-overlapping windows, so the raw hit count overstates how many distinct peptides
-are in play.
+15-mer windows are submitted to **IEDB's hosted NetMHCIIpan service**
+(`netmhciipan_el`, eluted-ligand likelihood rather than binding affinity),
+against a default panel of 8 HLA-DRB1 alleles covering common supertypes, at a
+percentile rank cutoff of 10. Predicted binders are reduced to their distinct
+9-mer binding cores. One core can be presented by several alleles and sit in
+several overlapping windows, so the raw hit count overstates how many distinct
+peptides are in play.
 
 Each core is then looked up in three human reference sets: germline Ig genes,
-the OAS repertoire, and the human proteome. The output reports, per set, how many
-cores are **found**, **not found**, and how far the not-found ones sit from the
-nearest reference peptide.
+the OAS repertoire, and the human proteome. The output reports, per set, how
+many cores are **found**, **not found**, and how far the not-found ones sit from
+the nearest reference peptide. This is an exact sequence annotation with unknown
+relevance to patient-level tolerance. A core the reference contains drops down
+the priority list; a core it lacks has *still to be shown* to provoke a
+response. Distance is not a risk scale, so cores two or more substitutions away
+are marked exploratory.
 
-A core the reference contains drops down the priority list. A core it lacks has
-*still to be shown* to provoke a response. It is a lookup result rather than a
-risk score. Cores one substitution away are reported separately and those two or more
-away are marked exploratory, because the effect of a substitution depends on
-which position changed.
-
-The predictions come from a hosted service, so they are cached locally and the
-exact method, allele panel, peptide length and cutoff are recorded in every run.
+Three reference sets are exposed rather than one because the choice of reference
+changes the answer, and that sensitivity is the point. Predictions come from a
+hosted service, so they are cached locally and the exact method, allele panel,
+peptide length and cutoff are recorded in every run.
 
 ---
 
@@ -200,24 +214,12 @@ kappa only        150        76     0.99491*     0.99254      0.99452
 lambda only        49         0         too few to measure
 ```
 
-### The result worth reporting is a negative one
-
-**Plain germline identity separates at least as well as OASis, everywhere this
-panel can measure it.** OASis is by far the bigger apparatus, a 9-mer prevalence
-database built from millions of repertoire sequences, and on this task it does
-not beat percent identity to the nearest germline gene.
-
-That is asserted as a test, not as a sentence:
-`test_plain_germline_identity_is_not_beaten_by_oasis` fails the build if it ever
-stops being true, and a per-chain-type version fails if it stops being true for
-heavy or kappa chains separately. The pooled row is heavy-chain-driven; on kappa
-chains the margin is **0.00039**, about four pair-swaps out of 11,400, which is
-why the table prints five decimals.
-
-OASis still earns its place: it is the only one of the two that says *which*
-peptides are unusual, which is what the epitope section needs.
-
-### Where the groups overlap
+Both scores discriminate origin well on this panel. Germline V identity had the
+highest observed AUC; OASis also provides local peptide and junctional-region
+information that a V-gene identity cannot. The differences between columns are
+observed point estimates on one panel, not established superiority of one
+measure over another: on kappa chains the margin is **0.00039**, about four
+pair-swaps out of 11,400, which is why the table prints five decimals.
 
 An AUC of 0.994 hides the tails, so the figure draws every chain as a point and
 the command names the exceptions:
@@ -231,13 +233,6 @@ Most human-like murine chain: tenatumomab (8832_seq1, K) at V=0.817.
   tosatoxumab   9757_seq1   H  V=0.812  FR=0.863  OASis=0.743
 ```
 
-All four are anti-infective antibodies. A plausible reading is that antibodies
-reaching their function through heavy somatic hypermutation drift far from their
-own germline while remaining entirely human. That would be a limitation of
-germline-identity scoring rather than a labelling error. **That reading is not
-verified here**: the discovery route of these four was not checked against the
-literature, and it is offered as a hypothesis, not a finding.
-
 Separately, one chimeric chain (vibecotamab, V=0.915) sits near the human median
 and accounts for most of the distance between the pooled AUC and 1.0.
 
@@ -246,31 +241,22 @@ a self-contained page.
 
 ### What the validation does not establish
 
+- **Origin is not a clinical endpoint.** Separating human from murine chains is
+  not predicting anti-drug antibody responses. A human-origin antibody can still
+  be immunogenic.
 - **One panel.** It is also the panel the structural framework-gap rule was
   derived from, so the two are not independent. That rule is re-derived from a
   random half and checked on the held-out half, which shows it is stable under
   resampling *within* this panel, and no more than that.
-- **Lambda chains are untested.** The panel contains 49 human and 10 humanized
-  lambda chains and **zero** chimeric or murine ones, so no lambda separation is
-  measurable. A test asserts this, so if a future panel adds them, it fails.
-- **Origin is not a clinical endpoint.** A human-origin antibody can still be
-  immunogenic.
-- **The MHC class II section has no validation at all.** Predicted binders are
-  not compared against measured epitopes anywhere in this project.
-
----
-
-## What this is not
-
-It is a **triage** tool: a way to rank candidates and decide what to look at
-first, ahead of an assay.
-
-It does not predict immunogenicity. No score here has been shown to correlate
-with clinical anti-drug antibody rates. That is not because the data is
-unavailable, but because establishing it is a validation exercise this project
-did not attempt. A high humanness score does not mean a molecule is safe, and a
-core with no germline match has not been shown to provoke anything. Those statements
-appear in the tool's own output for the same reason they appear here.
+- **No lambda comparison.** Origin discrimination could not be evaluated for
+  lambda: the panel holds 49 human and 10 humanized lambda chains and **zero**
+  chimeric or murine ones. Lambda implementation behaviour is tested; the
+  comparison is not measurable. A test asserts this, so if a future panel adds
+  negatives, it fails.
+- **MHC class II is tested, not validated.** The integration is tested against
+  stored IEDB responses, but this project does not independently check its
+  predictions or reference annotations against experimental binding,
+  presentation or T-cell assays.
 
 ---
 
@@ -299,8 +285,8 @@ included.
 | Source | Use | Terms |
 |---|---|---|
 | **IMGT** germline sequences (via ANARCI) | numbering, germline assignment | CC BY-4.0 |
-| **IMGT/mAb-DB** therapeutic panel, via [`Merck/BioPhi-2021-publication`](https://github.com/Merck/BioPhi-2021-publication) | validation panel (1,148 chains) | MIT, redistributed with `LICENSE.biophi` and SHA-256 checksums in `panels/imgt_mab_db/SOURCE.md` |
-| **OAS** repertoire sequences | numbering spot-checks | OAS publishes no licence or terms, so sequences were read locally and **are not redistributed here** |
+| **IMGT/mAb-DB** therapeutic panel, via [`Merck/BioPhi-2021-publication`](https://github.com/Merck/BioPhi-2021-publication) | validation panel (1,148 chains), `examples/` | MIT, redistributed with `LICENSE.biophi` and SHA-256 checksums in `panels/imgt_mab_db/SOURCE.md` |
+| **[OAS](https://opig.stats.ox.ac.uk/webapps/oas/)** repertoire sequences | numbering spot-checks | CC BY-4.0. Redistributable with attribution, but the two data units used are tens of megabytes and nothing here recomputes from them, so they were read locally and **are not shipped** |
 | **`promb`** peptide database | OASis humanness | MIT |
 | **IEDB** NetMHCIIpan | class II prediction | called as a hosted service, so the CBS/DTU-licensed software is not redistributed |
 
@@ -319,8 +305,9 @@ The suite touches no network: every IEDB response it needs is committed under
 `tests/data/iedb` and every invocation passes `--offline`.
 
 CI runs the same suite on clean amd64 Linux, plus the container build, on every
-push. That is what checks these install instructions actually work. A passing
-suite on the author's machine proves only that the author's machine works.
+push, which is what checks these install instructions rather than asserting
+them. A passing suite on the author's machine proves only that the author's
+machine works.
 
 ### Layout
 
@@ -340,6 +327,7 @@ src/abscore/
   provenance.py   versions, settings, verified sources, known limits
   cli.py          score · validate · provenance
 app.py            Streamlit interface
+examples/         two real chains, for the quick start
 panels/           committed therapeutic panel (+ SOURCE.md, licence, checksums)
 tests/            558 tests, including committed IEDB fixtures
 ```
@@ -349,6 +337,8 @@ tests/            558 tests, including committed IEDB fixtures
 ## Scope
 
 Built as a take-home exercise, to roughly a day of work, using public data only.
-The design choices that follow from that (one panel, no clinical validation, a
-hosted predictor rather than a local one) are stated where they matter rather
-than left for a reader to discover.
+The scoring methods are published ones, reimplemented rather than invented: the
+wrapper is not claimed as a new algorithm, and the work is in the numbering,
+integration, evaluation and limits. The design choices that follow from one day
+(one panel, no clinical validation, a hosted predictor rather than a local one)
+are stated where they matter rather than left for a reader to discover.

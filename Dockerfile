@@ -47,6 +47,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 COPY src ./src
 COPY panels ./panels
+COPY examples ./examples
 COPY app.py ./
 RUN uv sync --frozen --no-dev
 
