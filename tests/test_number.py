@@ -548,12 +548,13 @@ class TestDomainOrderDoesNotChangeTheResult:
     )
 
     @pytest.fixture(scope="class")
-    def both_orders(self):
+    @classmethod
+    def both_orders(cls):
         from abscore.number import number_sequence
 
         return (
-            number_sequence(self.TCR_ALPHA + TRASTUZUMAB_VH),
-            number_sequence(TRASTUZUMAB_VH + self.TCR_ALPHA),
+            number_sequence(cls.TCR_ALPHA + TRASTUZUMAB_VH),
+            number_sequence(TRASTUZUMAB_VH + cls.TCR_ALPHA),
         )
 
     def test_the_antibody_is_found_in_both_orders(self, both_orders):

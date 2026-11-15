@@ -552,8 +552,9 @@ class TestAConsequenceNeedsItsCause:
     )
 
     @pytest.fixture(scope="class")
-    def report(self):
-        return run(self.OAS_LAMBDA_ODD_ANCHOR, with_epitopes=False)
+    @classmethod
+    def report(cls):
+        return run(cls.OAS_LAMBDA_ODD_ANCHOR, with_epitopes=False)
 
     def test_the_chain_really_is_complete(self, report):
         """If this stops holding, the fixture no longer tests anything."""
@@ -619,7 +620,8 @@ class TestAnOrphanedConsequenceIsDropped:
             report.humanness = original
 
     @pytest.fixture(scope="class")
-    def complete(self):
+    @classmethod
+    def complete(cls):
         return run(ADALIMUMAB_VH, with_epitopes=False)
 
     def test_a_restatement_with_no_cause_is_dropped(self, complete):

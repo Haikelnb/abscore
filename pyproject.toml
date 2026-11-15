@@ -4,7 +4,6 @@ version = "0.1.0"
 description = "Immunogenicity triage for antibody heavy and light chains: humanness score and non-self MHC class II epitope burden."
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
 authors = [
     { name = "Haikel Bogale", email = "haikelnb@gmail.com" }
 ]
