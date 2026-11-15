@@ -505,14 +505,14 @@ else:
                     "Allele": e.allele,
                     "Peptide": e.peptide,
                     "Core": e.core,
-                    "Region": ", ".join(e.regions),
+                    "Regions": ", ".join(e.regions),
                     "Distance": e.distance_label(self_definition),
                 }
                 for e in unmatched[:20]
             ],
             hide_index=True,
             use_container_width=True,
-            column_config=_columns("Rank", "Allele", "Peptide", "Core", "Region", "Distance"),
+            column_config=_columns("Rank", "Allele", "Peptide", "Core", "Regions", "Distance"),
         )
         st.caption(
             (

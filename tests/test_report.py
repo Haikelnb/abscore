@@ -234,6 +234,28 @@ class TestSummaryLine:
         line = render_summary(humanized)
         assert "hits=" in line and "cores=" in line and "unmatched_germline=" in line
 
+    def test_the_unmatched_figure_counts_cores_not_hits(self, humanized):
+        """The two numbers beside `cores=` must be in the same unit as it.
+
+        `hits` counts peptide-allele pairs and is legitimately larger: one core
+        sits in several overlapping windows and can bind several alleles. The
+        bug this pins was printing the peptide-allele count under a key sitting
+        next to a core count, so a chain with 3 unmatched cores rendered as
+        `cores=18 unmatched_germline=18` and read as "all of them".
+        """
+        burden = humanized.epitopes
+        cores = burden.core_counts_by_definition()
+        line = render_summary(humanized)
+
+        assert f"cores={cores['distinct_cores']}" in line
+        assert f"unmatched_germline={cores['germline_unmatched']}" in line
+        assert f"hits={burden.count()}" in line
+
+        # The units genuinely differ on this fixture, so the assertions above
+        # could not pass by coincidence.
+        assert burden.count("germline") != cores["germline_unmatched"]
+        assert cores["germline_unmatched"] <= cores["distinct_cores"]
+
 
 class TestAlleleNamesSurviveRendering:
     """Every IMGT allele name contains an asterisk, which markdown eats.

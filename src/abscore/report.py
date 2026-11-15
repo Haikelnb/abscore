@@ -47,8 +47,7 @@ SelfDefinition = Literal["germline", "repertoire", "proteome"]
 #: reader who wants it will look. A tooltip that has to be read twice has failed.
 COLUMN_NOTES: dict[str, str] = {
     # Regions
-    # Used by two tables: one row per region, and the region(s) a core falls in.
-    "Region": "the IMGT framework or CDR region concerned",
+    "Region": "IMGT framework or CDR region of this V-domain",
     "IMGT slots": "the fixed position range IMGT reserves for this region",
     "Filled": "residues present out of slots reserved; a shorter loop leaves the middle empty",
     "Sequence": "the residues occupying those slots, in order",
@@ -73,10 +72,18 @@ COLUMN_NOTES: dict[str, str] = {
     "Hits": "predicted binders, one per peptide-allele pair",
     "Cores": "distinct 9-mer binding cores, however many alleles present each",
     "Caveats": "findings this chain raised; see its full report",
-    # Flagged runs
+    # Flagged runs, and the regions a predicted peptide spans.
+    #
+    # Plural on purpose. A 15-mer peptide is long enough to cross two region
+    # boundaries, and usually does: IMGT reserves 12 slots for CDR1 and 10 for
+    # CDR2, but a short loop fills far fewer, so no window can sit inside the
+    # loop alone and every one of them reaches into the flanking frameworks.
+    # On trastuzumab's heavy chain 18 of 77 hits span three regions. Three
+    # regions in a row is the expected shape of a short CDR, not an anomaly,
+    # and this note has to say so or a reader reads it as one.
     "IMGT span": "the stretch of positions, by IMGT number",
     "Positions flagged": "positions inside the span covered by at least one unseen 9-mer",
-    "Regions": "the framework or CDR regions the span falls in",
+    "Regions": "every region this stretch covers; a short CDR forces its flanking frameworks in",
     # Strongest hits
     "Rank": "percentile rank from the predictor; lower means more likely presented",
     "Allele": "the HLA-DRB1 allele this prediction is for",
@@ -265,7 +272,15 @@ def analyse(
             kwargs["progress"] = progress
         try:
             burden = epitope_burden(domain, offline=offline, **kwargs)
-            step(f"epitopes: {burden.count()} hits, {burden.count('germline')} unmatched")
+            # Cores, not hits, for the unmatched figure. `count('germline')`
+            # returns peptide-allele pairs, and printing that beside a hit
+            # count invites reading both as the same unit. The table this line
+            # precedes counts cores, so this one does too.
+            cores = burden.core_counts_by_definition()
+            step(
+                f"epitopes: {burden.count()} hits, {cores['distinct_cores']} cores, "
+                f"{cores['germline_unmatched']} not in germline"
+            )
         except IEDBError as exc:
             error = str(exc)
             step("epitopes: unavailable")
@@ -580,7 +595,7 @@ def render_markdown(
         if unmatched:
             lines.append(f"### Strongest unmatched hits (*{self_definition}* reference)")
             lines.append("")
-            lines.append("| Rank | Allele | Peptide | Core | Region | Distance |")
+            lines.append("| Rank | Allele | Peptide | Core | Regions | Distance |")
             lines.append("|---|---|---|---|---|---|")
             for epitope in unmatched[:10]:
                 lines.append(
@@ -633,10 +648,16 @@ def render_summary(report: ChainReport) -> str:
         f"OASis={_percent(report.humanness.score)}",
     ]
     if report.epitopes:
+        # `hits` counts peptide-allele pairs; the other two count distinct
+        # 9-mer cores. Mixing the units here once printed `cores=18
+        # unmatched_germline=18` for a chain with 3 unmatched cores, which
+        # reads as "every core is unmatched". The key name is unchanged so
+        # anything parsing this line keeps working.
         counts = report.epitopes.counts_by_definition()
+        cores = report.epitopes.core_counts_by_definition()
         parts.append(f"hits={counts['raw']}")
-        parts.append(f"cores={counts['distinct_cores']}")
-        parts.append(f"unmatched_germline={counts['germline_unmatched']}")
+        parts.append(f"cores={cores['distinct_cores']}")
+        parts.append(f"unmatched_germline={cores['germline_unmatched']}")
     else:
         parts.append("binders=unavailable")
     if report.warnings():
