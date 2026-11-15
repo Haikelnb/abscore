@@ -30,8 +30,23 @@ from html import escape
 
 from .epitopes import REFERENCE_LABELS, SELF_DEFINITIONS, SelfDefinition
 from .number import IMGT_REGIONS, STRUCTURAL_FRAMEWORK_GAPS
-from .report import ChainReport, extraction_note
+from .report import ChainReport, column_note, extraction_note
 from .track import render_track_html, track_styles
+
+
+def _th(label: str, *, num: bool = False) -> str:
+    """One table header, carrying its definition as a hover tooltip.
+
+    The definitions come from `report.COLUMN_NOTES` so this page and the app
+    explain a column the same way. A label with no entry there renders as a
+    plain header rather than failing: a missing tooltip is a smaller problem
+    than a crash, and an empty `title` would show as an empty box on hover.
+    """
+    note = column_note(label)
+    classes = " class='num'" if num else ""
+    title = f' title="{escape(note)}"' if note else ""
+    return f"<th{classes}{title}>{escape(label)}</th>"
+
 
 _STYLE = """
 :root {
@@ -80,6 +95,14 @@ th {
   text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap;
 }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+/* A column header carrying a definition. The dotted rule is the affordance:
+   a native title tooltip is invisible until hovered, so without it a reader
+   never learns the explanation is there. cursor:help says the same thing a
+   second way, for anyone who does not read the underline as a signal. */
+th[title] {
+  cursor: help; text-decoration: underline dotted var(--muted);
+  text-underline-offset: 3px;
+}
 tbody tr:last-child td { border-bottom: none; }
 .mono, code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.86em; }
 code {
@@ -171,8 +194,12 @@ def _regions(report: ChainReport) -> str:
     return (
         "<h2>Regions</h2>"
         + render_track_html(domain, include_styles=False)
-        + "<table><thead><tr><th>Region</th><th class='num'>IMGT slots</th>"
-        "<th class='num'>Filled</th><th>Sequence</th></tr></thead>"
+        + "<table><thead><tr>"
+        + _th("Region")
+        + _th("IMGT slots", num=True)
+        + _th("Filled", num=True)
+        + _th("Sequence")
+        + "</tr></thead>"
         f"<tbody>{''.join(body)}</tbody></table>"
         + _details(
             "How to read the slot counts",
@@ -210,8 +237,11 @@ def _humanness(report: ChainReport) -> str:
         for k, value, basis in rows
     )
     return (
-        "<h2>Humanness</h2><table><thead><tr><th>Measure</th><th class='num'>Value</th>"
-        f"<th>Basis</th></tr></thead><tbody>{body}</tbody></table>"
+        "<h2>Humanness</h2><table><thead><tr>"
+        + _th("Measure")
+        + _th("Value", num=True)
+        + _th("Basis")
+        + f"</tr></thead><tbody>{body}</tbody></table>"
         + _details(
             "Why germline identity leads",
             "It separates therapeutic antibodies by origin at least as well as the "
@@ -256,9 +286,14 @@ def _epitopes(report: ChainReport, self_definition: SelfDefinition) -> str:
         f"<code>{escape(burden.method)}</code> &middot; {burden.peptide_length}-mers "
         f"&middot; percentile rank &le; {burden.binder_rank:g}</p>"
         "<table><caption>Is each core found in a human reference set?</caption>"
-        "<thead><tr><th>Reference set</th><th class='num'>Found</th>"
-        "<th class='num'>Not found</th><th class='num'>1 away</th>"
-        "<th class='num'>2+ away</th><th class='num'>No entry</th></tr></thead>"
+        "<thead><tr>"
+        + _th("Reference set")
+        + _th("Found", num=True)
+        + _th("Not found", num=True)
+        + _th("1 away", num=True)
+        + _th("2+ away", num=True)
+        + _th("No entry", num=True)
+        + "</tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table>"
         f'<p class="unavailable">found + not found + no entry = {cores["distinct_cores"]} on '
         f"every row. The * marks the reference the rest of this page follows.</p>"

@@ -33,6 +33,74 @@ from .number import PARTIAL_DOMAIN_PREFIX, Domain, number_sequence
 
 SelfDefinition = Literal["germline", "repertoire", "proteome"]
 
+#: One short definition per table column, shared by every renderer that can show
+#: it on hover: the HTML report puts it in a `title` attribute, the Streamlit app
+#: passes it to `column_config(help=...)`.
+#:
+#: It lives here rather than in each renderer because the same column must not be
+#: explained two different ways in two places. A reader who hovers "Not found" in
+#: the browser and hovers it again in the app has to get the same sentence, or the
+#: definitions are worse than none.
+#:
+#: Each entry is one phrase. It states what the number counts, not why it matters:
+#: the longer reasoning stays in the prose under each table, which is where a
+#: reader who wants it will look. A tooltip that has to be read twice has failed.
+COLUMN_NOTES: dict[str, str] = {
+    # Regions
+    # Used by two tables: one row per region, and the region(s) a core falls in.
+    "Region": "the IMGT framework or CDR region concerned",
+    "IMGT slots": "the fixed position range IMGT reserves for this region",
+    "Filled": "residues present out of slots reserved; a shorter loop leaves the middle empty",
+    "Sequence": "the residues occupying those slots, in order",
+    # Humanness
+    "Measure": "which humanness number this row reports",
+    "Value": "percent identity, or percent of 9-mers, depending on the measure",
+    "Basis": "what it was computed over, and the denominator behind it",
+    # Epitope reference-set table
+    "Reference set": "the human peptide set each predicted core is looked up in",
+    "Found": "exact 9-mer is present in that reference set",
+    "Not found": "exact 9-mer is absent from it; a lookup result, not a risk score",
+    "1 away": "of the not-found, those whose nearest reference peptide differs at one position",
+    "2+ away": "of the not-found, those differing at two or more; exploratory, never a headline",
+    "No entry": "the reference cannot classify this core either way, so the report abstains",
+    # Batch table
+    "Name": "the FASTA record this row was scored from",
+    "Chain": "H heavy, K kappa, L lambda",
+    "Germline V": "closest human germline V gene",
+    "V identity": "percent identity to that gene across the whole V region",
+    "FR identity": "the same, framework only (FR1+FR2+FR3); FR4 is J-encoded",
+    "OASis": "percent of the chain's 9-mers seen in human repertoires",
+    "Hits": "predicted binders, one per peptide-allele pair",
+    "Cores": "distinct 9-mer binding cores, however many alleles present each",
+    "Caveats": "findings this chain raised; see its full report",
+    # Flagged runs
+    "IMGT span": "the stretch of positions, by IMGT number",
+    "Positions flagged": "positions inside the span covered by at least one unseen 9-mer",
+    "Regions": "the framework or CDR regions the span falls in",
+    # Strongest hits
+    "Rank": "percentile rank from the predictor; lower means more likely presented",
+    "Allele": "the HLA-DRB1 allele this prediction is for",
+    "Peptide": "the submitted 15-mer window",
+    "Core": "the 9 residues predicted to sit in the groove",
+    "Distance": "residues to the nearest reference peptide: 0, 1, or 2+",
+}
+
+
+def column_note(label: str) -> str | None:
+    """The short definition for a column label, if one is defined.
+
+    Falls back to a `(reference)`-suffixed label, so "Unmatched (germline)"
+    finds the "Unmatched" entry rather than going unexplained.
+    """
+    if label in COLUMN_NOTES:
+        return COLUMN_NOTES[label]
+    base = label.split(" (")[0].strip()
+    return COLUMN_NOTES.get(base)
+
+
+COLUMN_NOTES["Unmatched"] = COLUMN_NOTES["Not found"]
+COLUMN_NOTES["Matched"] = COLUMN_NOTES["Found"]
+
 
 @dataclass
 class ChainReport:
@@ -434,20 +502,20 @@ def render_markdown(
             )
             lines.append(
                 f"| &nbsp;&nbsp;matched in reference, *{definition}* | "
-                f"{counts[f'{definition}_matched']} | \u2014 |"
+                f"{counts[f'{definition}_matched']} | - |"
             )
             lines.append(
                 f"| &nbsp;&nbsp;unmatched, nearest 1 substitution away, *{definition}* | "
-                f"{counts[f'{definition}_one_substitution']} | \u2014 |"
+                f"{counts[f'{definition}_one_substitution']} | - |"
             )
             lines.append(
                 f"| &nbsp;&nbsp;unmatched, nearest 2+ away *(exploratory)*, *{definition}* | "
-                f"{counts[f'{definition}_distant']} | \u2014 |"
+                f"{counts[f'{definition}_distant']} | - |"
             )
             if counts[f"{definition}_unclassifiable"]:
                 lines.append(
                     f"| &nbsp;&nbsp;unclassifiable, *{definition}* | "
-                    f"{counts[f'{definition}_unclassifiable']} | \u2014 |"
+                    f"{counts[f'{definition}_unclassifiable']} | - |"
                 )
         lines.append("")
         lines.append(

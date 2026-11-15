@@ -14,7 +14,7 @@ from html.parser import HTMLParser
 import pytest
 
 from abscore.html import render_html, render_html_document
-from abscore.report import analyse, render_markdown, render_text
+from abscore.report import analyse, column_note, render_markdown, render_text
 from tests.fixtures import ADALIMUMAB_VH, TRASTUZUMAB_VH, TRASTUZUMAB_VL
 
 CACHE = "tests/data/iedb"
@@ -171,3 +171,36 @@ class TestAnUnavailableEpitopeSection:
         assert "Not available" in page
         assert "<h2>Humanness</h2>" in page
         assert "computed offline" in page
+
+
+class TestEveryColumnCarriesItsDefinition:
+    """A reader should not have to ask what a column means.
+
+    The definitions live in `report.COLUMN_NOTES` and reach this page as
+    `title` attributes. The risk being guarded against is silent drift: a
+    column renamed here, or a new one added, stops matching its entry and the
+    tooltip quietly disappears with nothing failing.
+    """
+
+    def test_every_header_in_the_page_has_a_title(self):
+        page = render_html(run(TRASTUZUMAB_VH))
+        # One regex capturing the tag and its label together, so the two can
+        # never be matched against each other out of step.
+        # The lookahead is load-bearing: `<th[^>]*>` also matches `<thead>`.
+        headers = re.findall(r"(<th(?=[\s>])[^>]*>)(.*?)</th>", page, flags=re.DOTALL)
+        assert headers, "no table headers found; the selector is wrong"
+        untitled = [label for tag, label in headers if "title=" not in tag]
+        assert not untitled, f"columns with no definition on hover: {untitled}"
+
+    def test_the_definitions_are_the_shared_ones(self):
+        page = render_html(run(TRASTUZUMAB_VH))
+        assert 'title="exact 9-mer is present in that reference set"' in page
+        assert "lookup result, not a risk score" in page
+
+    def test_a_reference_suffixed_label_still_finds_its_note(self):
+        """The app's batch column is "Unmatched (germline)", not "Unmatched"."""
+        assert column_note("Unmatched (germline)") == column_note("Not found")
+        assert column_note("Matched") == column_note("Found")
+
+    def test_an_unknown_label_renders_a_plain_header(self):
+        assert column_note("Something Nobody Defined") is None

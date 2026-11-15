@@ -94,6 +94,7 @@ class FakeStreamlit:
     def __init__(self, answers: dict):
         self.answers = answers
         self.calls: list[tuple[str, object]] = []
+        self.column_configs: list[dict] = []
         self.sidebar = self
         self.column_config = _ColumnConfig()
         # The epitope controls are keyed widgets rendered below the results but
@@ -118,6 +119,11 @@ class FakeStreamlit:
             if kwargs.get("icon") is not None:
                 validate_icon_or_emoji(kwargs["icon"])
             self.calls.append((kind, args[0] if args else None))
+            # Column definitions are passed as a kwarg, so they are invisible to
+            # the positional record above. Kept separately rather than widening
+            # `calls`, which every existing assertion reads as (kind, first arg).
+            if kind == "dataframe":
+                self.column_configs.append(kwargs.get("column_config") or {})
 
         return fn
 
@@ -183,8 +189,18 @@ class _Bar:
 
 
 class _ColumnConfig:
+    """The subset of `st.column_config` the app uses.
+
+    Both return a plain dict because the real ones do: Streamlit's column
+    config objects are TypedDicts, which is what lets the app merge a `help`
+    into a NumberColumn by key assignment rather than rebuilding it.
+    """
+
     def NumberColumn(self, *a, **k):  # noqa: N802 - mirrors Streamlit's API
-        return {"format": k.get("format")}
+        return {"format": k.get("format"), "help": k.get("help")}
+
+    def Column(self, label=None, **k):  # noqa: N802 - mirrors Streamlit's API
+        return {"label": label, "help": k.get("help")}
 
 
 def render(answers: dict, monkeypatch) -> FakeStreamlit:
@@ -331,3 +347,39 @@ class TestTheBatchTableReportsPercentages:
         human, murine = render({SEQ: text}, monkeypatch).tables[0]
         assert human["V identity"] > murine["V identity"]
         assert human["OASis"] > murine["OASis"]
+
+
+class TestEveryColumnCarriesItsDefinition:
+    """The app's counterpart to the same check on the HTML report.
+
+    Streamlit shows `help` as a tooltip on the column header, which is the only
+    place a definition fits without spending a row of vertical space. The
+    failure this guards against is a column being renamed or added without a
+    matching entry in `report.COLUMN_NOTES`: nothing breaks, the tooltip simply
+    stops appearing, and the table goes back to being unexplained.
+    """
+
+    def test_every_rendered_table_defines_all_its_columns(self, monkeypatch, cached_epitopes):
+        text = f">human\n{TRASTUZUMAB_VH}\n>light\n{TRASTUZUMAB_VL}\n"
+        app = render({SEQ: text, EPITOPES: True}, monkeypatch)
+        tables = [t for t in app.tables if t]
+        assert tables, "no tables rendered; the fixture is not exercising them"
+        # The epitope hits table is the one most likely to be skipped silently,
+        # so name a column only it has rather than trusting the count.
+        rendered = {column for rows in tables for column in rows[0]}
+        assert "Core" in rendered, "the epitope table did not render; nothing was checked"
+        assert "Region" in rendered
+        missing = []
+        for rows, config in zip(tables, app.column_configs, strict=False):
+            for column in rows[0]:
+                if column not in config:
+                    missing.append(column)
+        assert not missing, f"columns with no definition on hover: {missing}"
+
+    def test_a_formatted_column_keeps_both_its_format_and_its_help(self, monkeypatch):
+        """Formatting and explaining are independent; setting one must not drop the other."""
+        text = f">human\n{ADALIMUMAB_VH}\n>murine\n{ABAGOVOMAB_VH}\n"
+        app = render({SEQ: text}, monkeypatch)
+        batch = next(c for c in app.column_configs if "V identity" in c)
+        assert batch["V identity"]["format"] == "%.1f%%"
+        assert batch["V identity"]["help"]

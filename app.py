@@ -24,7 +24,40 @@ import streamlit as st
 from abscore.epitopes import SELF_DEFINITIONS
 from abscore.iedb import DEFAULT_ALLELES, DEFAULT_METHOD, METHODS, IEDBError
 from abscore.number import NumberingError
-from abscore.report import analyse, escape_markdown, extraction_note, render_markdown
+from abscore.report import (
+    analyse,
+    column_note,
+    escape_markdown,
+    extraction_note,
+    render_markdown,
+)
+
+
+def _columns(*labels: str, **overrides: object) -> dict[str, object]:
+    """Column config giving each named column its definition on hover.
+
+    Streamlit renders `help` as a tooltip on the header, which is the one place
+    a definition can sit without taking a row of vertical space away from the
+    data. The text comes from `report.COLUMN_NOTES`, shared with the HTML
+    report, so a column is never explained two ways.
+
+    `overrides` lets a caller pass a typed column (a NumberColumn with a
+    format, say); the help is merged into it rather than replacing it, since
+    formatting and explaining are independent concerns. Streamlit's column
+    config objects are plain dicts, so the merge is a key assignment.
+    """
+    config: dict[str, object] = {}
+    for label in labels:
+        note = column_note(label)
+        existing = overrides.pop(label, None)
+        if existing is not None:
+            if note is not None:
+                existing["help"] = note  # type: ignore[index]
+            config[label] = existing
+        elif note is not None:
+            config[label] = st.column_config.Column(label, help=note)
+    config.update(overrides)
+    return config
 
 
 def parse_input(text: str) -> list[tuple[str, str]]:
@@ -214,11 +247,23 @@ if len(results) > 1:
         ],
         hide_index=True,
         use_container_width=True,
-        column_config={
-            "V identity": st.column_config.NumberColumn(format="%.1f%%"),
-            "FR identity": st.column_config.NumberColumn(format="%.1f%%"),
-            "OASis": st.column_config.NumberColumn(format="%.1f%%"),
-        },
+        column_config=_columns(
+            "Name",
+            "Chain",
+            "Germline V",
+            "V identity",
+            "FR identity",
+            "OASis",
+            "Hits",
+            "Cores",
+            f"Unmatched ({self_definition})",
+            "Caveats",
+            **{
+                "V identity": st.column_config.NumberColumn(format="%.1f%%"),
+                "FR identity": st.column_config.NumberColumn(format="%.1f%%"),
+                "OASis": st.column_config.NumberColumn(format="%.1f%%"),
+            },
+        ),
     )
     st.caption(
         "Click a column header to sort. Identities are percentages; see a "
@@ -300,6 +345,7 @@ with right:
             ],
             hide_index=True,
             use_container_width=True,
+            column_config=_columns("Region", "IMGT slots", "Filled", "Sequence"),
         )
         gaps = ", ".join(
             str(p) for p in sorted(STRUCTURAL_FRAMEWORK_GAPS.get(domain.chain_type, ()))
@@ -354,6 +400,7 @@ if runs:
             ],
             hide_index=True,
             use_container_width=True,
+            column_config=_columns("IMGT span", "Positions flagged", "Regions"),
         )
         st.caption("An observation. The cause stays open.")
 
@@ -465,6 +512,7 @@ else:
             ],
             hide_index=True,
             use_container_width=True,
+            column_config=_columns("Rank", "Allele", "Peptide", "Core", "Region", "Distance"),
         )
         st.caption(
             (
