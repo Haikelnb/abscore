@@ -197,8 +197,7 @@ peptide length and cutoff are recorded in every run.
 
 `abscore validate` scores every chain of the committed therapeutic panel (1,148
 chains from IMGT/mAb-DB) and asks how well each metric separates antibodies of
-known human origin from murine and chimeric ones. Nothing in the scoring is
-fitted to those origin labels, which are human curation of engineering history.
+known human origin from murine and chimeric ones.
 
 Separation is reported as **AUC**: the probability that a randomly chosen human
 chain outscores a randomly chosen murine or chimeric one. It needs no threshold,
