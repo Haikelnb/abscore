@@ -23,10 +23,10 @@ cache/
 
 # Generated reports. `abscore score --save report.html` writes into the working
 # directory, so these appear during ordinary use and are not part of the project.
-report.md
-report.html
-validation.html
-validation.svg
+/report.md
+/report.html
+/validation.html
+/validation.svg
 out/
 
 # Reviewer notes and working documents. These are commentary ON this project,

@@ -220,23 +220,18 @@ observed point estimates on one panel, not established superiority of one
 measure over another: on kappa chains the margin is **0.00039**, about four
 pair-swaps out of 11,400, which is why the table prints five decimals.
 
-An AUC of 0.994 hides the tails, so the figure draws every chain as a point and
-the command names the exceptions:
+An AUC of 0.994 hides the tails, so the figure draws every chain as a point:
 
-```
-Most human-like murine chain: tenatumomab (8832_seq1, K) at V=0.817.
-4 human-origin chains score at or below it:
-  elipovimab    10988_seq2  L  V=0.709  FR=0.771  OASis=0.392
-  elipovimab    10988_seq1  H  V=0.779  FR=0.825  OASis=0.524
-  navivumab     9976_seq1   H  V=0.781  FR=0.800  OASis=0.695
-  tosatoxumab   9757_seq1   H  V=0.812  FR=0.863  OASis=0.743
-```
+![Humanness scores by engineering origin and chain type](docs/validation.svg)
 
-Separately, one chimeric chain (vibecotamab, V=0.915) sits near the human median
-and accounts for most of the distance between the pooled AUC and 1.0.
-
-`abscore validate --figure validation.html` writes the figure and this table as
-a self-contained page.
+Three metrics across, three chain types down, with each group's median as a flat
+rule. The overlap is small and nameable: one murine chain (tenatumomab,
+V=0.817) outscores four human-origin chains, the lowest being elipovimab's
+lambda chain at V=0.709, and one chimeric chain (vibecotamab, V=0.915) sits near
+the human median and is most of the distance between the pooled AUC and 1.0.
+`abscore validate` prints those by name; `--figure validation.html` writes the
+figure and this table as a self-contained page, `--figure validation.svg`
+regenerates the image above.
 
 ### What the validation does not establish
 
